@@ -24,13 +24,17 @@
     }
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "web_accessible_resources": [{
-    "resources": ["utils.js", "node_modules/sentiment/*", "node_modules/chart.js/dist/*"],
+    "resources": [
+      "utils.js",
+      "node_modules/chart.js/dist/*"
+    ],
     "matches": ["https://www.youtube.com/*"]
   }],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   }
 }
