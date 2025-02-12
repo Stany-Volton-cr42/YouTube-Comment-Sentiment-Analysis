@@ -27,10 +27,10 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run build || echo \"No build script found - extension ready for testing\""
+args = "web-ext build --overwrite-dest && echo 'Extension built successfully'"
 
 [deployment]
-run = ["sh", "-c", "npm run build || echo \"No build script found - extension ready for testing\""]
+run = ["sh", "-c", "web-ext build --overwrite-dest && echo 'Extension built successfully'"]
 
 [[ports]]
 localPort = 8000

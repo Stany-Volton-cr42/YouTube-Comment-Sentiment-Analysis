@@ -67,6 +67,34 @@ async function loadMoreComments(maxScrolls = 3) {
     return true;
 }
 
+// Function to send comments to background script for analysis
+function sendCommentsForAnalysis(comments) {
+    if (!comments || !Array.isArray(comments) || comments.length === 0) {
+        console.warn('No comments to analyze');
+        return;
+    }
+
+    console.log('Sending comments to background script for analysis...');
+    chrome.runtime.sendMessage({
+        action: 'updateComments',
+        comments: comments
+    }, response => {
+        if (response && response.success) {
+            console.log(`Successfully analyzed ${response.commentCount} comments`);
+        } else {
+            console.error('Error analyzing comments:', response?.error);
+            // Retry once after a short delay if analysis fails
+            setTimeout(() => {
+                console.log('Retrying comment analysis...');
+                chrome.runtime.sendMessage({
+                    action: 'updateComments',
+                    comments: comments
+                });
+            }, 2000);
+        }
+    });
+}
+
 // Function to observe DOM changes for dynamic comment loading
 function observeCommentSection() {
     console.log('Setting up comment section observer...');
@@ -76,17 +104,7 @@ function observeCommentSection() {
         console.log('Comment section mutation detected');
         const comments = extractComments();
         if (comments.length > 0) {
-            console.log('Sending comments to background script for analysis...');
-            chrome.runtime.sendMessage({
-                action: 'updateComments',
-                comments: comments
-            }, response => {
-                if (response && response.success) {
-                    console.log(`Successfully analyzed ${response.commentCount} comments`);
-                } else {
-                    console.error('Error analyzing comments:', response?.error);
-                }
-            });
+            sendCommentsForAnalysis(comments);
         }
     }, 1000));
 
@@ -103,17 +121,7 @@ function observeCommentSection() {
             loadMoreComments().then(() => {
                 const initialComments = extractComments();
                 if (initialComments.length > 0) {
-                    console.log('Sending initial comments for analysis...');
-                    chrome.runtime.sendMessage({
-                        action: 'updateComments',
-                        comments: initialComments
-                    }, response => {
-                        if (response && response.success) {
-                            console.log(`Successfully analyzed ${response.commentCount} initial comments`);
-                        } else {
-                            console.error('Error analyzing initial comments:', response?.error);
-                        }
-                    });
+                    sendCommentsForAnalysis(initialComments);
                 }
             });
         } else {

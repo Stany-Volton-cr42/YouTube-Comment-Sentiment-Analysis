@@ -28,13 +28,10 @@
     "type": "module"
   },
   "web_accessible_resources": [{
-    "resources": [
-      "utils.js",
-      "node_modules/chart.js/dist/*"
-    ],
+    "resources": ["node_modules/**/*"],
     "matches": ["https://www.youtube.com/*"]
   }],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    "extension_pages": "script-src 'self' 'unsafe-inline' 'unsafe-eval'; object-src 'self'"
   }
 }

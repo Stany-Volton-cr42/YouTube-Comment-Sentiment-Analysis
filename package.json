@@ -11,6 +11,7 @@
   "description": "",
   "dependencies": {
     "chart.js": "^4.4.7",
-    "sentiment": "^5.0.2"
+    "sentiment": "^5.0.2",
+    "web-ext": "^8.4.0"
   }
 }

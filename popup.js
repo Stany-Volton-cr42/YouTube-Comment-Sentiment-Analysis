@@ -2,16 +2,18 @@
 let chart;
 let currentComments = [];
 
-// Initialize Chart.js visualization with error handling
+// Initialize Chart.js visualization with improved error handling
 function initializeChart(data) {
     const ctx = document.getElementById('sentimentChart').getContext('2d');
     const chartContainer = document.querySelector('.chart-container');
 
     try {
+        // Check if Chart.js is loaded
         if (typeof Chart === 'undefined') {
             throw new Error('Chart.js library not loaded');
         }
 
+        // Destroy existing chart if it exists
         if (chart) {
             chart.destroy();
         }
@@ -63,6 +65,23 @@ function initializeChart(data) {
     }
 }
 
+// Helper functions for sentiment classification
+function getSentimentClass(score) {
+    if (!score && score !== 0) return 'neutral';
+    if (score > 0.1) return 'positive';
+    if (score < -0.1) return 'negative';
+    return 'neutral';
+}
+
+function formatNumber(num) {
+    return num ? new Intl.NumberFormat().format(num) : '0';
+}
+
+function truncateText(text, maxLength = 100) {
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength - 3) + "..." : text;
+}
+
 // Update UI with comment data
 function updateUI(comments) {
     try {
@@ -74,7 +93,7 @@ function updateUI(comments) {
         if (!currentComments.length) {
             document.getElementById('avg-sentiment').textContent = '0.00';
             document.getElementById('comments-list').innerHTML = 
-                '<p class="no-comments">No comments found. Try scrolling the YouTube comments section to load more.</p>';
+                '<p class="no-comments">No comments found. Try scrolling through the YouTube comments section to load more.</p>';
             initializeChart([0, 0, 0]);
             return;
         }
@@ -89,9 +108,9 @@ function updateUI(comments) {
 
         // Calculate sentiment distribution
         const distribution = [
-            validComments.filter(c => c.sentiment.normalizedScore > 0.2).length,
-            validComments.filter(c => Math.abs(c.sentiment.normalizedScore) <= 0.2).length,
-            validComments.filter(c => c.sentiment.normalizedScore < -0.2).length
+            validComments.filter(c => c.sentiment.normalizedScore > 0.1).length,
+            validComments.filter(c => Math.abs(c.sentiment.normalizedScore) <= 0.1).length,
+            validComments.filter(c => c.sentiment.normalizedScore < -0.1).length
         ];
 
         // Initialize chart with distribution data
@@ -166,11 +185,11 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
             let filtered = currentComments.filter(c => c && c.sentiment);
 
             if (sentiment === 'positive') {
-                filtered = filtered.filter(c => c.sentiment.normalizedScore > 0.2);
+                filtered = filtered.filter(c => c.sentiment.normalizedScore > 0.1);
             } else if (sentiment === 'neutral') {
-                filtered = filtered.filter(c => Math.abs(c.sentiment.normalizedScore) <= 0.2);
+                filtered = filtered.filter(c => Math.abs(c.sentiment.normalizedScore) <= 0.1);
             } else if (sentiment === 'negative') {
-                filtered = filtered.filter(c => c.sentiment.normalizedScore < -0.2);
+                filtered = filtered.filter(c => c.sentiment.normalizedScore < -0.1);
             }
 
             displayComments(filtered);
@@ -188,7 +207,14 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             if (result.error) {
                 document.getElementById('comments-list').innerHTML = 
-                    `<p class="error-message">Error: ${result.error}</p>`;
+                    `<p class="error-message">Error: ${result.error}</p>
+                     <p>Try refreshing the YouTube page and reopening the extension.</p>`;
+                return;
+            }
+
+            if (!result.analyzedComments || !Array.isArray(result.analyzedComments)) {
+                document.getElementById('comments-list').innerHTML = 
+                    '<p class="no-comments">No comments analyzed yet. Try scrolling through the YouTube comments section.</p>';
                 return;
             }
 
@@ -196,7 +222,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error loading initial data:', error);
             document.getElementById('comments-list').innerHTML = 
-                `<p class="error-message">Error loading data: ${error.message}</p>`;
+                `<p class="error-message">Error loading data: ${error.message}</p>
+                 <p>Please try reopening the extension.</p>`;
         }
     });
 });
@@ -214,7 +241,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
 });
 
-// Helper functions
+// Helper functions (moved to the top for better organization)
 function formatNumber(num) {
     return num ? new Intl.NumberFormat().format(num) : '0';
 }
@@ -226,7 +253,7 @@ function truncateText(text, maxLength = 100) {
 
 function getSentimentClass(score) {
     if (!score && score !== 0) return 'neutral';
-    if (score > 0.2) return 'positive';
-    if (score < -0.2) return 'negative';
+    if (score > 0.1) return 'positive';
+    if (score < -0.1) return 'negative';
     return 'neutral';
 }

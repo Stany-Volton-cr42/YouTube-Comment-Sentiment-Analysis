@@ -4,12 +4,14 @@ const sentimentWords = {
     positive: [
         'good', 'great', 'awesome', 'excellent', 'love', 'amazing', 'perfect', 'beautiful', 'best', 'happy',
         'wonderful', 'fantastic', 'brilliant', 'helpful', 'enjoyed', 'favorite', 'liked', 'superb', 'outstanding',
-        'interesting', 'fun', 'nice', 'cool', 'helpful', 'useful', 'recommended', 'impressive', 'inspiring'
+        'interesting', 'fun', 'nice', 'cool', 'helpful', 'useful', 'recommended', 'impressive', 'inspiring',
+        'thanks', 'thank', 'appreciate', 'well', 'better', 'improved', 'clear', 'easy', 'excited', 'worth'
     ],
     negative: [
         'bad', 'terrible', 'awful', 'horrible', 'hate', 'worst', 'poor', 'disappointing', 'waste', 'sad',
         'boring', 'useless', 'annoying', 'dislike', 'wrong', 'stupid', 'worse', 'ridiculous', 'garbage',
-        'terrible', 'horrible', 'confusing', 'confused', 'disappointed', 'frustrating', 'pathetic', 'pointless'
+        'terrible', 'horrible', 'confusing', 'confused', 'disappointed', 'frustrating', 'pathetic', 'pointless',
+        'mess', 'messed', 'broken', 'difficult', 'hard', 'impossible', 'never', 'problem', 'issue', 'fail'
     ]
 };
 
