@@ -1,18 +1,31 @@
-// Import Sentiment from CDN in manifest
-importScripts('https://cdn.jsdelivr.net/npm/sentiment@5.0.2/dist/sentiment.min.js');
+// Initialize sentiment analyzer
+let sentimentAnalyzer;
+
+// Load Sentiment library from CDN
+try {
+    importScripts('https://cdn.jsdelivr.net/npm/sentiment@5.0.2/dist/sentiment.min.js');
+    sentimentAnalyzer = new Sentiment();
+} catch (error) {
+    console.error('Error loading sentiment library:', error);
+}
 
 let commentData = [];
 
 // Process comments and analyze sentiment with error handling
 function analyzeSentiment(text) {
     try {
-        const sentiment = new Sentiment();
-        const analysis = sentiment.analyze(text);
+        if (!sentimentAnalyzer) {
+            throw new Error('Sentiment analyzer not initialized');
+        }
 
+        const analysis = sentimentAnalyzer.analyze(text);
         // Normalize the score to be between -1 and 1
-        analysis.normalizedScore = analysis.score / Math.max(Math.abs(analysis.score), 1);
+        const normalizedScore = analysis.score / Math.max(Math.abs(analysis.score), 1);
 
-        return analysis;
+        return {
+            ...analysis,
+            normalizedScore
+        };
     } catch (error) {
         console.error('Error analyzing sentiment:', error);
         return {
@@ -43,6 +56,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 error: null,
                 errorTimestamp: null
             });
+
+            // Send response back to content script
+            sendResponse({ success: true, commentCount: commentData.length });
         } catch (error) {
             console.error('Error processing comments:', error);
             // Store error state
@@ -50,6 +66,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 error: error.message,
                 errorTimestamp: new Date().toISOString()
             });
+            sendResponse({ success: false, error: error.message });
         }
     }
     return true; // Required for async response
