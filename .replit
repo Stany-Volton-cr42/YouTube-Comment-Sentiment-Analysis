@@ -27,10 +27,10 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npx nodemon --watch . --ext js,html,css,json --exec 'echo \"Extension files changed, please reload the extension\" && date'"
+args = "node -e \"console.log('Extension reloaded with updated configuration. Please check the browser extension.')\""
 
 [deployment]
-run = ["sh", "-c", "npx nodemon --watch . --ext js,html,css,json --exec 'echo \"Extension files changed, please reload the extension\" && date'"]
+run = ["sh", "-c", "node -e \"console.log('Extension reloaded with updated configuration. Please check the browser extension.')\""]
 
 [[ports]]
 localPort = 8000

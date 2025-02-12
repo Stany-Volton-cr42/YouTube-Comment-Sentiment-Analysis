@@ -1,42 +1,34 @@
 // Initialize sentiment analyzer
 let sentimentAnalyzer;
 
-// Load Sentiment library from CDN
-try {
-    importScripts('https://cdn.jsdelivr.net/npm/sentiment@5.0.2/dist/sentiment.min.js');
-    sentimentAnalyzer = new Sentiment();
-} catch (error) {
-    console.error('Error loading sentiment library:', error);
-}
-
-let commentData = [];
-
 // Process comments and analyze sentiment with error handling
 function analyzeSentiment(text) {
     try {
         if (!sentimentAnalyzer) {
-            throw new Error('Sentiment analyzer not initialized');
+            // Initialize sentiment analyzer on first use
+            const Sentiment = require('sentiment');
+            sentimentAnalyzer = new Sentiment();
         }
 
         const analysis = sentimentAnalyzer.analyze(text);
-        // Normalize the score to be between -1 and 1
-        const normalizedScore = analysis.score / Math.max(Math.abs(analysis.score), 1);
+
+        // Calculate normalized score between -1 and 1
+        // Use a lower maxScore for better spread of sentiment values
+        const maxScore = Math.max(Math.abs(analysis.score), 3);
+        const normalizedScore = analysis.score / maxScore;
 
         return {
-            ...analysis,
-            normalizedScore
+            score: analysis.score,
+            normalizedScore: normalizedScore,
+            comparative: analysis.comparative,
+            tokens: analysis.tokens,
+            words: analysis.words,
+            positive: analysis.positive,
+            negative: analysis.negative
         };
     } catch (error) {
         console.error('Error analyzing sentiment:', error);
-        return {
-            score: 0,
-            comparative: 0,
-            normalizedScore: 0,
-            tokens: [],
-            words: [],
-            positive: [],
-            negative: []
-        };
+        throw new Error('Sentiment analysis failed: ' + error.message);
     }
 }
 
@@ -44,7 +36,7 @@ function analyzeSentiment(text) {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'updateComments') {
         try {
-            commentData = request.comments.map(comment => ({
+            const commentData = request.comments.map(comment => ({
                 ...comment,
                 sentiment: analyzeSentiment(comment.text)
             }));
@@ -53,15 +45,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             chrome.storage.local.set({ 
                 analyzedComments: commentData,
                 lastUpdated: new Date().toISOString(),
-                error: null,
-                errorTimestamp: null
+                error: null
             });
 
             // Send response back to content script
             sendResponse({ success: true, commentCount: commentData.length });
         } catch (error) {
             console.error('Error processing comments:', error);
-            // Store error state
             chrome.storage.local.set({ 
                 error: error.message,
                 errorTimestamp: new Date().toISOString()
@@ -77,7 +67,6 @@ chrome.runtime.onInstalled.addListener(() => {
     chrome.storage.local.set({ 
         analyzedComments: [],
         lastUpdated: null,
-        error: null,
-        errorTimestamp: null
+        error: null
     });
 });
