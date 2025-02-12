@@ -21,7 +21,10 @@ function truncateText(text, maxLength = 100) {
 // Error handling wrapper
 function handleError(error) {
     console.error('Extension Error:', error);
-    // You could implement more sophisticated error handling here
+    return {
+        message: error.message || 'An unexpected error occurred',
+        timestamp: new Date().toISOString()
+    };
 }
 
 // Debounce function for performance optimization
@@ -34,5 +37,16 @@ function debounce(func, wait) {
         };
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
+    };
+}
+
+// Export functions for use in other modules
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        getSentimentClass,
+        formatNumber,
+        truncateText,
+        handleError,
+        debounce
     };
 }

@@ -45,6 +45,7 @@ h1 {
 .chart-container {
     height: 200px;
     margin: 16px 0;
+    position: relative;
 }
 
 .filters {
@@ -59,7 +60,18 @@ h1 {
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    transition: background-color 0.3s;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    opacity: 0.7;
+}
+
+.filter-btn:hover {
+    opacity: 1;
+}
+
+.filter-btn.active {
+    opacity: 1;
+    transform: scale(1.02);
 }
 
 .filter-btn[data-sentiment="positive"] {
@@ -84,6 +96,11 @@ h1 {
     margin-bottom: 8px;
     border-radius: 4px;
     background: #f8f8f8;
+    transition: transform 0.2s ease;
+}
+
+.comment-item:hover {
+    transform: translateX(2px);
 }
 
 .comment-item.positive {
@@ -101,11 +118,70 @@ h1 {
 .comment-text {
     margin: 0 0 8px 0;
     font-size: 14px;
+    line-height: 1.4;
 }
 
 .comment-meta {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     font-size: 12px;
     color: #666;
+}
+
+.meta-right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.author {
+    font-weight: 500;
+}
+
+.timestamp, .likes {
+    color: #888;
+}
+
+.sentiment-score {
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.no-comments {
+    text-align: center;
+    color: #666;
+    padding: 20px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    margin: 0;
+}
+
+.error-message {
+    text-align: center;
+    color: #d32f2f;
+    padding: 20px;
+    background: rgba(211, 47, 47, 0.1);
+    border-radius: 4px;
+    margin: 0;
+}
+
+/* Scrollbar styling */
+.comments-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.comments-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.comments-container::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.comments-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
 }

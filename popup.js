@@ -4,7 +4,7 @@ let currentComments = [];
 // Initialize Chart.js visualization
 function initializeChart(data) {
     const ctx = document.getElementById('sentimentChart').getContext('2d');
-    
+
     if (chart) {
         chart.destroy();
     }
@@ -31,9 +31,18 @@ function initializeChart(data) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: {
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
                 }
             }
         }
@@ -42,21 +51,29 @@ function initializeChart(data) {
 
 // Update UI with comment data
 function updateUI(comments) {
+    if (!comments || comments.length === 0) {
+        document.getElementById('total-comments').textContent = '0';
+        document.getElementById('avg-sentiment').textContent = '0.00';
+        document.getElementById('comments-list').innerHTML = '<p class="no-comments">No comments found. Try scrolling the YouTube comments section to load more.</p>';
+        initializeChart([0, 0, 0]);
+        return;
+    }
+
     currentComments = comments;
-    
+
     // Update statistics
-    document.getElementById('total-comments').textContent = comments.length;
-    
+    document.getElementById('total-comments').textContent = formatNumber(comments.length);
+
     const avgSentiment = comments.reduce((acc, curr) => 
-        acc + curr.sentiment.score, 0) / comments.length;
+        acc + curr.sentiment.normalizedScore, 0) / comments.length;
     document.getElementById('avg-sentiment').textContent = 
         avgSentiment.toFixed(2);
 
     // Calculate sentiment distribution
     const distribution = [
-        comments.filter(c => c.sentiment.score > 0).length,
-        comments.filter(c => c.sentiment.score === 0).length,
-        comments.filter(c => c.sentiment.score < 0).length
+        comments.filter(c => c.sentiment.normalizedScore > 0).length,
+        comments.filter(c => c.sentiment.normalizedScore === 0).length,
+        comments.filter(c => c.sentiment.normalizedScore < 0).length
     ];
 
     initializeChart(distribution);
@@ -70,12 +87,20 @@ function displayComments(comments) {
 
     comments.forEach(comment => {
         const div = document.createElement('div');
-        div.className = `comment-item ${getSentimentClass(comment.sentiment.score)}`;
+        div.className = `comment-item ${getSentimentClass(comment.sentiment.normalizedScore)}`;
+
+        const timestamp = comment.timestamp ? `<span class="timestamp">${comment.timestamp}</span>` : '';
+        const likes = comment.likes ? `<span class="likes">👍 ${formatNumber(comment.likes)}</span>` : '';
+
         div.innerHTML = `
-            <p class="comment-text">${comment.text}</p>
+            <p class="comment-text">${truncateText(comment.text)}</p>
             <div class="comment-meta">
                 <span class="author">${comment.author}</span>
-                <span class="sentiment-score">Sentiment: ${comment.sentiment.score}</span>
+                <div class="meta-right">
+                    ${timestamp}
+                    ${likes}
+                    <span class="sentiment-score">Sentiment: ${comment.sentiment.normalizedScore.toFixed(2)}</span>
+                </div>
             </div>
         `;
         container.appendChild(div);
@@ -90,25 +115,37 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 
         switch(sentiment) {
             case 'positive':
-                filtered = currentComments.filter(c => c.sentiment.score > 0);
+                filtered = currentComments.filter(c => c.sentiment.normalizedScore > 0);
                 break;
             case 'neutral':
-                filtered = currentComments.filter(c => c.sentiment.score === 0);
+                filtered = currentComments.filter(c => c.sentiment.normalizedScore === 0);
                 break;
             case 'negative':
-                filtered = currentComments.filter(c => c.sentiment.score < 0);
+                filtered = currentComments.filter(c => c.sentiment.normalizedScore < 0);
                 break;
         }
+
+        // Update active button state
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
 
         displayComments(filtered);
     });
 });
 
-// Load initial data
+// Load initial data and handle errors
 document.addEventListener('DOMContentLoaded', () => {
-    chrome.storage.local.get(['analyzedComments'], (result) => {
+    chrome.storage.local.get(['analyzedComments', 'error'], (result) => {
+        if (result.error) {
+            document.getElementById('comments-list').innerHTML = 
+                `<p class="error-message">Error: ${result.error}</p>`;
+            return;
+        }
+
         if (result.analyzedComments && result.analyzedComments.length > 0) {
             updateUI(result.analyzedComments);
+        } else {
+            updateUI([]); // Show empty state
         }
     });
 });
@@ -119,3 +156,22 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
         updateUI(changes.analyzedComments.newValue);
     }
 });
+
+function formatNumber(num) {
+    return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,');
+}
+
+
+function truncateText(text, maxLength = 100) {
+    return text.length > maxLength ? text.substring(0, maxLength - 3) + "..." : text;
+}
+
+function getSentimentClass(score) {
+    if (score > 0) {
+        return 'positive';
+    } else if (score < 0) {
+        return 'negative';
+    } else {
+        return 'neutral';
+    }
+}
