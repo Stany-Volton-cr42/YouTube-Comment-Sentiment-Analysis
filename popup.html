@@ -3,10 +3,19 @@
 <head>
     <title>YouTube Comment Sentiment Analysis</title>
     <link rel="stylesheet" href="styles.css">
+    <script defer src="libs/chart.umd.js"></script>
+    <script defer src="libs/d3.min.js"></script>
+    <script defer src="libs/d3.layout.cloud.js"></script>
 </head>
 <body>
     <div class="container">
         <h1>Comment Sentiment Analysis</h1>
+
+        <!-- Error container for library loading issues -->
+        <div id="error-container" style="display: none;">
+            <div class="error-message"></div>
+            <div class="error-details"></div>
+        </div>
 
         <div class="stats-container">
             <div class="stat-box">
@@ -46,14 +55,8 @@
         </div>
     </div>
 
-    <!-- Load Chart.js first to ensure it's available globally -->
-    <script src="libs/chart.umd.js"></script>
-    <!-- Load D3.js after Chart.js -->
-    <script src="libs/d3.min.js"></script>
-    <script src="libs/d3.layout.cloud.js"></script>
-    <!-- Load our utility functions -->
-    <script src="utils.js"></script>
-    <!-- Load the main popup script last -->
-    <script src="popup.js"></script>
+    <!-- Application Scripts -->
+    <script defer src="utils.js"></script>
+    <script defer src="popup.js"></script>
 </body>
 </html>

@@ -1,111 +1,177 @@
 console.log('Popup script starting...');
-console.log('Checking Chart.js availability:', typeof Chart);
+
+// Error recovery function
+function recoverFromLibraryError() {
+    console.log('Attempting to recover from library loading error...');
+
+    // Check library availability
+    const libraryStatus = {
+        chart: typeof Chart !== 'undefined',
+        d3: typeof d3 !== 'undefined',
+        d3cloud: typeof d3.layout?.cloud !== 'undefined'
+    };
+
+    console.log('Library status:', libraryStatus);
+
+    if (!libraryStatus.chart || !libraryStatus.d3 || !libraryStatus.d3cloud) {
+        const missingLibs = [];
+        if (!libraryStatus.chart) missingLibs.push('Chart.js');
+        if (!libraryStatus.d3) missingLibs.push('D3.js');
+        if (!libraryStatus.d3cloud) missingLibs.push('D3 Cloud Layout');
+
+        throw new Error(`Required libraries not loaded: ${missingLibs.join(', ')}`);
+    }
+
+    return true;
+}
 
 // Initialize charts and comments array
 let chart;
 let trendChart;
 let currentComments = [];
+let librariesLoaded = false;
 
-// Initialize Chart.js visualizations
-function initializeCharts(distributionData, trendData) {
+// Function to ensure libraries are loaded before initialization
+function ensureLibrariesLoaded() {
+    if (librariesLoaded) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+        const maxAttempts = 5;
+
+        function checkLibraries() {
+            try {
+                if (recoverFromLibraryError()) {
+                    librariesLoaded = true;
+                    resolve();
+                    return;
+                }
+            } catch (error) {
+                console.warn(`Library check attempt ${attempts + 1}/${maxAttempts} failed:`, error);
+
+                if (++attempts >= maxAttempts) {
+                    reject(new Error('Failed to load required libraries after multiple attempts'));
+                    return;
+                }
+
+                setTimeout(checkLibraries, 500); // Retry after 500ms
+            }
+        }
+
+        checkLibraries();
+    });
+}
+
+// Initialize Chart.js visualizations with error recovery
+async function initializeCharts(distributionData, trendData) {
     console.log('Initializing charts with data:', { distributionData, trendData });
-    const distributionCtx = document.getElementById('sentimentChart').getContext('2d');
-    const trendCtx = document.getElementById('trendChart').getContext('2d');
 
     try {
-        // Check if Chart.js is loaded
-        if (typeof Chart === 'undefined') {
-            console.error('Chart.js not found. Please check if the library is properly loaded.');
-            throw new Error('Chart.js library not loaded');
-        }
+        await ensureLibrariesLoaded();
+
+        const distributionCtx = document.getElementById('sentimentChart').getContext('2d');
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
 
         // Destroy existing charts if they exist
-        if (chart) {
-            console.log('Destroying existing chart');
-            chart.destroy();
-        }
-        if (trendChart) {
-            console.log('Destroying existing trend chart');
-            trendChart.destroy();
-        }
+        if (chart) chart.destroy();
+        if (trendChart) trendChart.destroy();
 
-        console.log('Creating new distribution chart');
-        // Initialize distribution chart
-        chart = new Chart(distributionCtx, {
-            type: 'bar',
-            data: {
-                labels: ['Positive', 'Neutral', 'Negative'],
-                datasets: [{
-                    label: 'Comment Sentiment Distribution',
-                    data: distributionData,
-                    backgroundColor: [
-                        'rgba(75, 192, 192, 0.6)',
-                        'rgba(201, 203, 207, 0.6)',
-                        'rgba(255, 99, 132, 0.6)'
-                    ],
-                    borderColor: [
-                        'rgb(75, 192, 192)',
-                        'rgb(201, 203, 207)',
-                        'rgb(255, 99, 132)'
-                    ],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
+        // Create new charts with error handling
+        try {
+            chart = new Chart(distributionCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Positive', 'Neutral', 'Negative'],
+                    datasets: [{
+                        label: 'Comment Sentiment Distribution',
+                        data: distributionData,
+                        backgroundColor: [
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(201, 203, 207, 0.6)',
+                            'rgba(255, 99, 132, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgb(75, 192, 192)',
+                            'rgb(201, 203, 207)',
+                            'rgb(255, 99, 132)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
                         }
                     }
+                }
+            });
+
+            trendChart = new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: trendData.labels,
+                    datasets: [{
+                        label: 'Sentiment Trend',
+                        data: trendData.values,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
                 },
-                plugins: {
-                    legend: {
-                        display: false
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            suggestedMin: -1,
+                            suggestedMax: 1
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        console.log('Creating new trend chart');
-        // Initialize trend chart
-        trendChart = new Chart(trendCtx, {
-            type: 'line',
-            data: {
-                labels: trendData.labels,
-                datasets: [{
-                    label: 'Sentiment Trend',
-                    data: trendData.values,
-                    borderColor: 'rgb(75, 192, 192)',
-                    tension: 0.1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: false,
-                        suggestedMin: -1,
-                        suggestedMax: 1
-                    }
-                }
-            }
-        });
+            console.log('Charts initialized successfully');
 
-        console.log('Charts initialized successfully');
+        } catch (chartError) {
+            console.error('Error creating charts:', chartError);
+            throw new Error(`Failed to create charts: ${chartError.message}`);
+        }
 
     } catch (error) {
         console.error('Error initializing charts:', error);
         console.error('Error stack:', error.stack);
-        document.querySelector('.chart-container').innerHTML = `
-            <p class="error-message">Error loading charts: ${error.message}</p>
-            <p>Please reload the extension</p>
-            <p>Debug info: Chart.js available: ${typeof Chart !== 'undefined'}</p>
-        `;
+
+        const container = document.querySelector('.chart-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="error-container">
+                    <p class="error-message">Error loading charts: ${error.message}</p>
+                    <p>Troubleshooting steps:</p>
+                    <ul>
+                        <li>Check if you're on a YouTube page</li>
+                        <li>Refresh the page and try again</li>
+                        <li>If the issue persists, disable and re-enable the extension</li>
+                    </ul>
+                    <p>Debug info:</p>
+                    <ul>
+                        <li>Chart.js available: ${typeof Chart !== 'undefined'}</li>
+                        <li>D3.js available: ${typeof d3 !== 'undefined'}</li>
+                        <li>Time: ${new Date().toISOString()}</li>
+                    </ul>
+                </div>
+            `;
+        }
     }
 }
 
