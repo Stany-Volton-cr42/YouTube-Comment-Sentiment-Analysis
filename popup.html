@@ -46,14 +46,14 @@
         </div>
     </div>
 
-    <!-- Load Chart.js first -->
-    <script src="node_modules/chart.js/dist/chart.umd.js"></script>
-    <!-- Load D3.js and its extensions -->
-    <script src="node_modules/d3/dist/d3.min.js"></script>
-    <script src="node_modules/d3-cloud/build/d3.layout.cloud.js"></script>
+    <!-- Load Chart.js first to ensure it's available globally -->
+    <script src="libs/chart.umd.js"></script>
+    <!-- Load D3.js after Chart.js -->
+    <script src="libs/d3.min.js"></script>
+    <script src="libs/d3.layout.cloud.js"></script>
     <!-- Load our utility functions -->
     <script src="utils.js"></script>
-    <!-- Load the main popup script -->
+    <!-- Load the main popup script last -->
     <script src="popup.js"></script>
 </body>
 </html>

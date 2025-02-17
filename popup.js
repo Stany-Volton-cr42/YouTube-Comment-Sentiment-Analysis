@@ -1,3 +1,6 @@
+console.log('Popup script starting...');
+console.log('Checking Chart.js availability:', typeof Chart);
+
 // Initialize charts and comments array
 let chart;
 let trendChart;
@@ -5,19 +8,28 @@ let currentComments = [];
 
 // Initialize Chart.js visualizations
 function initializeCharts(distributionData, trendData) {
+    console.log('Initializing charts with data:', { distributionData, trendData });
     const distributionCtx = document.getElementById('sentimentChart').getContext('2d');
     const trendCtx = document.getElementById('trendChart').getContext('2d');
 
     try {
         // Check if Chart.js is loaded
         if (typeof Chart === 'undefined') {
+            console.error('Chart.js not found. Please check if the library is properly loaded.');
             throw new Error('Chart.js library not loaded');
         }
 
         // Destroy existing charts if they exist
-        if (chart) chart.destroy();
-        if (trendChart) trendChart.destroy();
+        if (chart) {
+            console.log('Destroying existing chart');
+            chart.destroy();
+        }
+        if (trendChart) {
+            console.log('Destroying existing trend chart');
+            trendChart.destroy();
+        }
 
+        console.log('Creating new distribution chart');
         // Initialize distribution chart
         chart = new Chart(distributionCtx, {
             type: 'bar',
@@ -58,6 +70,7 @@ function initializeCharts(distributionData, trendData) {
             }
         });
 
+        console.log('Creating new trend chart');
         // Initialize trend chart
         trendChart = new Chart(trendCtx, {
             type: 'line',
@@ -83,11 +96,15 @@ function initializeCharts(distributionData, trendData) {
             }
         });
 
+        console.log('Charts initialized successfully');
+
     } catch (error) {
         console.error('Error initializing charts:', error);
+        console.error('Error stack:', error.stack);
         document.querySelector('.chart-container').innerHTML = `
             <p class="error-message">Error loading charts: ${error.message}</p>
             <p>Please reload the extension</p>
+            <p>Debug info: Chart.js available: ${typeof Chart !== 'undefined'}</p>
         `;
     }
 }
