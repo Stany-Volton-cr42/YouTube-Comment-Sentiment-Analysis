@@ -23,6 +23,16 @@
             <canvas id="sentimentChart"></canvas>
         </div>
 
+        <div class="chart-container">
+            <h3>Sentiment Trend Over Time</h3>
+            <canvas id="trendChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h3>Word Cloud</h3>
+            <div id="wordCloud"></div>
+        </div>
+
         <div class="filters">
             <button class="filter-btn active" data-sentiment="all">All</button>
             <button class="filter-btn" data-sentiment="positive">Positive</button>
@@ -36,9 +46,14 @@
         </div>
     </div>
 
-    <!-- Load Chart.js from local node_modules -->
+    <!-- Load Chart.js first -->
     <script src="node_modules/chart.js/dist/chart.umd.js"></script>
+    <!-- Load D3.js and its extensions -->
+    <script src="node_modules/d3/dist/d3.min.js"></script>
+    <script src="node_modules/d3-cloud/build/d3.layout.cloud.js"></script>
+    <!-- Load our utility functions -->
     <script src="utils.js"></script>
+    <!-- Load the main popup script -->
     <script src="popup.js"></script>
 </body>
 </html>

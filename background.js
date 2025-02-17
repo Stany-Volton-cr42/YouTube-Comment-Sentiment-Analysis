@@ -1,4 +1,5 @@
 // Initialize sentiment analyzer with expanded word lists for better classification
+let sentimentAnalyzer;
 let initialized = false;
 const sentimentWords = {
     positive: [

@@ -27,10 +27,10 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "web-ext build --overwrite-dest && echo 'Extension built successfully'"
+args = "web-ext build"
 
 [deployment]
-run = ["sh", "-c", "web-ext build --overwrite-dest && echo 'Extension built successfully'"]
+run = ["sh", "-c", "web-ext build"]
 
 [[ports]]
 localPort = 8000
