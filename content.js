@@ -1,32 +1,38 @@
-// Function to extract comments from YouTube page
+// Function to extract comments using document.querySelectorAll
 function extractComments() {
     console.log('Starting comment extraction...');
     const comments = [];
     const commentElements = document.querySelectorAll('ytd-comment-thread-renderer');
     console.log(`Found ${commentElements.length} comment elements`);
 
-    commentElements.forEach((element, index) => {
+    commentElements.forEach((commentEl, index) => {
         try {
-            const commentText = element.querySelector('#content-text')?.textContent?.trim();
-            const author = element.querySelector('#author-text span')?.textContent?.trim();
-            const likes = element.querySelector('#vote-count-middle')?.textContent?.trim();
-            const timestamp = element.querySelector('.published-time-text a')?.textContent?.trim();
+            // More specific selectors for better reliability
+            const contentEl = commentEl.querySelector('#content-text');
+            const authorEl = commentEl.querySelector('#author-text span');
+            const timestampEl = commentEl.querySelector('yt-formatted-string.published-time-text');
+            const likesEl = commentEl.querySelector('#vote-count-middle');
 
-            if (commentText && author) {
-                comments.push({
-                    text: commentText,
-                    author: author || 'Anonymous',
-                    likes: likes || '0',
-                    timestamp: timestamp || 'Unknown time'
-                });
-            } else {
-                console.log(`Skipping comment ${index} - missing required data:`, {
-                    hasText: !!commentText,
-                    hasAuthor: !!author
-                });
+            if (contentEl && authorEl) {
+                const comment = {
+                    text: contentEl.textContent.trim(),
+                    author: authorEl.textContent.trim(),
+                    timestamp: timestampEl ? timestampEl.textContent.trim() : '',
+                    likes: likesEl ? parseInt(likesEl.textContent.replace(/[^0-9]/g, '')) || 0 : 0,
+                    url: window.location.href,
+                    videoId: new URLSearchParams(window.location.search).get('v')
+                };
+                
+                if (comment.text) {
+                    comments.push(comment);
+                    console.log(`Extracted comment ${index + 1}:`, { 
+                        text: comment.text.substring(0, 50) + '...',
+                        author: comment.author
+                    });
+                }
             }
         } catch (error) {
-            console.error(`Error extracting comment ${index}:`, error);
+            console.warn(`Error extracting comment ${index}:`, error);
         }
     });
 
@@ -35,64 +41,126 @@ function extractComments() {
 }
 
 // Function to scroll and load more comments
-async function loadMoreComments(maxScrolls = 3) {
+async function loadMoreComments(targetCount = 100) {
     console.log('Starting to load more comments...');
     const commentsSection = document.querySelector('ytd-comments');
     if (!commentsSection) {
         console.warn('Comments section not found');
-        return false;
+        return [];
     }
 
-    let scrollCount = 0;
-    let hasMore = true;
+    let previousCommentCount = 0;
+    let attempts = 0;
+    const maxAttempts = 10;
+    const waitTime = 1500;
 
-    while (scrollCount < maxScrolls && hasMore) {
-        console.log(`Scroll attempt ${scrollCount + 1}/${maxScrolls}`);
-        const previousHeight = commentsSection.scrollHeight;
-        commentsSection.scrollIntoView({ behavior: 'smooth', block: 'end' });
-
-        // Wait for new comments to load
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Check if new comments were loaded
-        hasMore = commentsSection.scrollHeight > previousHeight;
-        if (hasMore) {
-            console.log('New comments loaded, continuing scroll');
-        } else {
-            console.log('No new comments loaded, stopping scroll');
+    while (attempts < maxAttempts) {
+        const currentComments = extractComments();
+        console.log(`Attempt ${attempts + 1}: Found ${currentComments.length} comments`);
+        
+        if (currentComments.length >= targetCount || 
+            currentComments.length === previousCommentCount) {
+            return currentComments;
         }
-        scrollCount++;
+
+        previousCommentCount = currentComments.length;
+        commentsSection.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        attempts++;
     }
 
-    return true;
+    return extractComments();
 }
 
-// Function to send comments to background script for analysis
-function sendCommentsForAnalysis(comments) {
-    if (!comments || !Array.isArray(comments) || comments.length === 0) {
-        console.warn('No comments to analyze');
-        return;
-    }
-
+// Function to send comments to background script
+async function sendCommentsToBackground(comments) {
     console.log('Sending comments to background script for analysis...');
-    chrome.runtime.sendMessage({
-        action: 'updateComments',
-        comments: comments
-    }, response => {
+    
+    try {
+        const response = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({
+                action: 'updateComments',
+                comments: comments
+            }, response => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                } else {
+                    resolve(response);
+                }
+            });
+        });
+
         if (response && response.success) {
             console.log(`Successfully analyzed ${response.commentCount} comments`);
+            return response.comments; // Return the analyzed comments
         } else {
-            console.error('Error analyzing comments:', response?.error);
-            // Retry once after a short delay if analysis fails
-            setTimeout(() => {
-                console.log('Retrying comment analysis...');
-                chrome.runtime.sendMessage({
-                    action: 'updateComments',
-                    comments: comments
-                });
-            }, 2000);
+            throw new Error(response?.error || 'Failed to analyze comments');
         }
-    });
+    } catch (error) {
+        console.error('Error sending comments to background:', error);
+        throw error;
+    }
+}
+
+// Function to process comments
+async function processComments() {
+    try {
+        const comments = await extractComments();
+        if (!comments || comments.length === 0) {
+            console.log('No comments found to analyze');
+            return;
+        }
+
+        const analyzedComments = await sendCommentsToBackground(comments);
+        console.log('Analyzed comments:', analyzedComments);
+        
+        // Update UI with analyzed comments if needed
+        if (typeof updateUI === 'function') {
+            updateUI(analyzedComments);
+        }
+    } catch (error) {
+        console.error('Error processing comments:', error);
+    }
+}
+
+// Function to check if comments section exists and is loaded
+function isCommentsSectionLoaded() {
+    const commentsSection = document.querySelector('ytd-comments');
+    const hasComments = document.querySelectorAll('ytd-comment-thread-renderer').length > 0;
+    return commentsSection && hasComments;
+}
+
+// Function to initialize comment extraction
+async function initializeCommentExtraction(maxRetries = 10, retryInterval = 2000) {
+    console.log('Initializing comment extraction...');
+    let retries = 0;
+
+    const tryInitialize = async () => {
+        if (retries >= maxRetries) {
+            console.warn('Max retries reached for comment initialization');
+            return;
+        }
+
+        if (!isCommentsSectionLoaded()) {
+            console.log(`Comments section not ready, retry ${retries + 1}/${maxRetries}`);
+            retries++;
+            setTimeout(tryInitialize, retryInterval);
+            return;
+        }
+
+        console.log('Comments section found, starting extraction');
+        const comments = await loadMoreComments();
+        if (comments.length > 0) {
+            console.log(`Sending ${comments.length} comments for analysis...`);
+            await processComments();
+        }
+
+        // Set up observer for future changes
+        observeCommentSection();
+    };
+
+    await tryInitialize();
 }
 
 // Function to observe DOM changes for dynamic comment loading
@@ -102,10 +170,7 @@ function observeCommentSection() {
     // Create observer instance
     const observer = new MutationObserver(debounce((mutations) => {
         console.log('Comment section mutation detected');
-        const comments = extractComments();
-        if (comments.length > 0) {
-            sendCommentsForAnalysis(comments);
-        }
+        processComments();
     }, 1000));
 
     // Configuration for the observer
@@ -119,10 +184,7 @@ function observeCommentSection() {
             observer.observe(commentSection, config);
             // Initial load of comments
             loadMoreComments().then(() => {
-                const initialComments = extractComments();
-                if (initialComments.length > 0) {
-                    sendCommentsForAnalysis(initialComments);
-                }
+                processComments();
             });
         } else {
             console.log('Comment section not found, retrying in 1 second...');
@@ -134,14 +196,66 @@ function observeCommentSection() {
     startObserving();
 }
 
+// Handle YouTube's SPA navigation
+let currentVideoId = null;
+
+function handleUrlChange() {
+    const videoId = new URLSearchParams(window.location.search).get('v');
+    if (videoId && videoId !== currentVideoId) {
+        currentVideoId = videoId;
+        if (window.location.href.includes('youtube.com/watch')) {
+            console.log('New video detected, reinitializing comment extraction...');
+            initializeCommentExtraction();
+        }
+    }
+}
+
 // Initialize when page loads
 window.addEventListener('load', () => {
-    console.log('Page loaded, waiting for YouTube to initialize...');
-    // Wait for YouTube to initialize
-    setTimeout(() => {
-        console.log('Starting comment section observation...');
-        observeCommentSection();
-    }, 2000);
+    if (window.location.href.includes('youtube.com/watch')) {
+        initializeCommentExtraction();
+    }
+});
+
+// Listen for URL changes (YouTube SPA navigation)
+const urlObserver = new MutationObserver(() => {
+    handleUrlChange();
+});
+
+urlObserver.observe(document.querySelector('title'), {
+    subtree: true,
+    characterData: true,
+    childList: true
+});
+
+// Listen for messages from popup
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'getComments') {
+        (async () => {
+            try {
+                if (!window.location.href.includes('youtube.com/watch')) {
+                    throw new Error('Not a YouTube video page');
+                }
+
+                console.log('Fetching comments...');
+                const comments = await loadMoreComments();
+                
+                if (comments.length === 0) {
+                    throw new Error('No comments found');
+                }
+
+                console.log(`Sending ${comments.length} comments for analysis...`);
+                const analyzedComments = await processComments();
+                sendResponse(analyzedComments);
+
+            } catch (error) {
+                console.error('Error getting comments:', error);
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+
+        return true; // Required for async response
+    }
 });
 
 // Debounce function for performance optimization

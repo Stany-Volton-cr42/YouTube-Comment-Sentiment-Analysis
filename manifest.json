@@ -2,36 +2,38 @@
   "manifest_version": 3,
   "name": "YouTube Comment Sentiment Analyzer",
   "version": "1.0",
-  "description": "Analyzes sentiment of YouTube comments with interactive visualization",
+  "description": "Analyzes sentiment of YouTube comments and provides visual insights",
   "permissions": [
+    "storage",
     "activeTab",
     "scripting",
-    "storage"
+    "tabs"
   ],
   "host_permissions": [
     "https://www.youtube.com/*"
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "YouTube Comment Sentiment"
+    "default_icon": {
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
       "matches": ["https://www.youtube.com/*"],
-      "js": ["utils.js", "content.js"],
-      "css": ["styles.css"],
-      "run_at": "document_end"
+      "js": ["libs/vader-sentiment.js", "utils.js", "content.js"]
     }
   ],
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
   "web_accessible_resources": [{
     "resources": [
       "libs/*",
       "utils.js",
-      "styles.css"
+      "popup.css",
+      "*.js"
     ],
     "matches": ["https://www.youtube.com/*"]
   }],

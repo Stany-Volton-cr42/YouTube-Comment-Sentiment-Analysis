@@ -3,9 +3,11 @@
 <head>
     <title>YouTube Comment Sentiment Analysis</title>
     <link rel="stylesheet" href="styles.css">
-    <script defer src="libs/chart.umd.js"></script>
-    <script defer src="libs/d3.min.js"></script>
-    <script defer src="libs/d3.layout.cloud.js"></script>
+    <!-- Libraries -->
+    <script src="libs/chart.umd.js"></script>
+    <script src="libs/sentiment.min.js"></script>
+    <script src="utils.js"></script>
+    <script src="popup.js"></script>
 </head>
 <body>
     <div class="container">
@@ -17,6 +19,7 @@
             <div class="error-details"></div>
         </div>
 
+        <!-- Stats -->
         <div class="stats-container">
             <div class="stat-box">
                 <h3>Total Comments</h3>
@@ -24,39 +27,43 @@
             </div>
             <div class="stat-box">
                 <h3>Average Sentiment</h3>
-                <span id="avg-sentiment">0</span>
+                <span id="avg-sentiment">0.00</span>
+            </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="summary-container">
+            <h2>Summary</h2>
+            <div id="summary-content"></div>
+            <button id="refresh-summary" class="refresh-btn">Refresh Summary</button>
+        </div>
+
+        <!-- Charts -->
+        <div class="chart-container">
+            <h2>Sentiment Distribution</h2>
+            <div class="chart-wrapper">
+                <canvas id="sentimentChart"></canvas>
             </div>
         </div>
 
         <div class="chart-container">
-            <canvas id="sentimentChart"></canvas>
+            <h2>Sentiment Trend</h2>
+            <div class="chart-wrapper">
+                <canvas id="trendChart"></canvas>
+            </div>
         </div>
 
-        <div class="chart-container">
-            <h3>Sentiment Trend Over Time</h3>
-            <canvas id="trendChart"></canvas>
-        </div>
-
-        <div class="chart-container">
-            <h3>Word Cloud</h3>
-            <div id="wordCloud"></div>
-        </div>
-
-        <div class="filters">
-            <button class="filter-btn active" data-sentiment="all">All</button>
-            <button class="filter-btn" data-sentiment="positive">Positive</button>
-            <button class="filter-btn" data-sentiment="neutral">Neutral</button>
-            <button class="filter-btn" data-sentiment="negative">Negative</button>
-        </div>
-
+        <!-- Comments -->
         <div class="comments-container">
             <h2>Comments</h2>
+            <div class="filters">
+                <button class="filter-btn active" data-sentiment="all">All</button>
+                <button class="filter-btn" data-sentiment="positive">Positive</button>
+                <button class="filter-btn" data-sentiment="neutral">Neutral</button>
+                <button class="filter-btn" data-sentiment="negative">Negative</button>
+            </div>
             <div id="comments-list"></div>
         </div>
     </div>
-
-    <!-- Application Scripts -->
-    <script defer src="utils.js"></script>
-    <script defer src="popup.js"></script>
 </body>
 </html>

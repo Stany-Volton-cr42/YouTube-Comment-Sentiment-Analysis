@@ -4,32 +4,53 @@ console.log('Popup script starting...');
 function recoverFromLibraryError() {
     console.log('Attempting to recover from library loading error...');
 
-    // Check library availability
-    const libraryStatus = {
-        chart: typeof Chart !== 'undefined',
-        d3: typeof d3 !== 'undefined',
-        d3cloud: typeof d3.layout?.cloud !== 'undefined'
-    };
+    // Check only Chart.js availability since that's all we need
+    const hasChartJs = typeof Chart !== 'undefined';
+    console.log('Chart.js available:', hasChartJs);
 
-    console.log('Library status:', libraryStatus);
-
-    if (!libraryStatus.chart || !libraryStatus.d3 || !libraryStatus.d3cloud) {
-        const missingLibs = [];
-        if (!libraryStatus.chart) missingLibs.push('Chart.js');
-        if (!libraryStatus.d3) missingLibs.push('D3.js');
-        if (!libraryStatus.d3cloud) missingLibs.push('D3 Cloud Layout');
-
-        throw new Error(`Required libraries not loaded: ${missingLibs.join(', ')}`);
+    if (!hasChartJs) {
+        throw new Error('Chart.js library not loaded');
     }
 
     return true;
 }
 
+// Function to check if Chart.js is loaded
+function isChartJsLoaded() {
+    return typeof Chart !== 'undefined';
+}
+
+// Function to wait for Chart.js to load
+async function waitForChartJs(maxAttempts = 20) {
+    console.log('Waiting for Chart.js to load...');
+    for (let i = 0; i < maxAttempts; i++) {
+        if (isChartJsLoaded()) {
+            console.log('Chart.js loaded successfully');
+            return true;
+        }
+        console.log(`Attempt ${i + 1}/${maxAttempts} to load Chart.js`);
+        await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    return false;
+}
+
 // Initialize charts and comments array
-let chart;
-let trendChart;
 let currentComments = [];
-let librariesLoaded = false;
+let charts = {
+    distribution: null,
+    trend: null
+};
+
+// Function to safely destroy a chart
+function safeDestroyChart(chartInstance) {
+    try {
+        if (chartInstance && typeof chartInstance.destroy === 'function') {
+            chartInstance.destroy();
+        }
+    } catch (error) {
+        console.warn('Error destroying chart:', error);
+    }
+}
 
 // Function to ensure libraries are loaded before initialization
 function ensureLibrariesLoaded() {
@@ -41,7 +62,10 @@ function ensureLibrariesLoaded() {
 
         function checkLibraries() {
             try {
-                if (recoverFromLibraryError()) {
+                const hasChartJs = typeof Chart !== 'undefined';
+                console.log('Chart.js available:', hasChartJs);
+
+                if (hasChartJs) {
                     librariesLoaded = true;
                     resolve();
                     return;
@@ -73,12 +97,12 @@ async function initializeCharts(distributionData, trendData) {
         const trendCtx = document.getElementById('trendChart').getContext('2d');
 
         // Destroy existing charts if they exist
-        if (chart) chart.destroy();
-        if (trendChart) trendChart.destroy();
+        safeDestroyChart(charts.distribution);
+        safeDestroyChart(charts.trend);
 
         // Create new charts with error handling
         try {
-            chart = new Chart(distributionCtx, {
+            charts.distribution = new Chart(distributionCtx, {
                 type: 'bar',
                 data: {
                     labels: ['Positive', 'Neutral', 'Negative'],
@@ -117,7 +141,7 @@ async function initializeCharts(distributionData, trendData) {
                 }
             });
 
-            trendChart = new Chart(trendCtx, {
+            charts.trend = new Chart(trendCtx, {
                 type: 'line',
                 data: {
                     labels: trendData.labels,
@@ -166,7 +190,6 @@ async function initializeCharts(distributionData, trendData) {
                     <p>Debug info:</p>
                     <ul>
                         <li>Chart.js available: ${typeof Chart !== 'undefined'}</li>
-                        <li>D3.js available: ${typeof d3 !== 'undefined'}</li>
                         <li>Time: ${new Date().toISOString()}</li>
                     </ul>
                 </div>
@@ -181,32 +204,75 @@ function processTrendData(comments) {
         return { labels: [], values: [] };
     }
 
-    // Sort comments by timestamp
-    const sortedComments = [...comments].sort((a, b) => {
-        return new Date(a.timestamp) - new Date(b.timestamp);
-    });
+    try {
+        // Group comments by date
+        const dateGroups = {};
+        comments.forEach(comment => {
+            if (!comment.timestamp || !comment.sentiment) return;
+            
+            const date = formatDate(comment.timestamp);
+            if (!dateGroups[date]) {
+                dateGroups[date] = {
+                    sum: 0,
+                    count: 0
+                };
+            }
+            dateGroups[date].sum += comment.sentiment.normalizedScore;
+            dateGroups[date].count++;
+        });
 
-    // Group comments by timestamp and calculate average sentiment
-    const trendData = sortedComments.reduce((acc, comment) => {
-        const timestamp = new Date(comment.timestamp).toLocaleDateString();
-        if (!acc[timestamp]) {
-            acc[timestamp] = {
-                sum: 0,
-                count: 0
-            };
+        // Convert to arrays and sort by date
+        const sortedDates = Object.keys(dateGroups).sort();
+        const values = sortedDates.map(date => 
+            dateGroups[date].sum / dateGroups[date].count
+        );
+
+        return {
+            labels: sortedDates,
+            values: values
+        };
+    } catch (error) {
+        console.error('Error processing trend data:', error);
+        return { labels: [], values: [] };
+    }
+}
+
+// Helper function to format dates
+function formatDate(timestamp) {
+    try {
+        if (timestamp.includes('ago')) {
+            // Handle relative timestamps
+            const now = new Date();
+            const matches = timestamp.match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/);
+            if (matches) {
+                const amount = parseInt(matches[1]);
+                const unit = matches[2];
+                const date = new Date(now);
+                
+                switch(unit) {
+                    case 'second': date.setSeconds(date.getSeconds() - amount); break;
+                    case 'minute': date.setMinutes(date.getMinutes() - amount); break;
+                    case 'hour': date.setHours(date.getHours() - amount); break;
+                    case 'day': date.setDate(date.getDate() - amount); break;
+                    case 'week': date.setDate(date.getDate() - amount * 7); break;
+                    case 'month': date.setMonth(date.getMonth() - amount); break;
+                    case 'year': date.setFullYear(date.getFullYear() - amount); break;
+                }
+                return date.toISOString().split('T')[0];
+            }
         }
-        acc[timestamp].sum += comment.sentiment.normalizedScore;
-        acc[timestamp].count += 1;
-        return acc;
-    }, {});
-
-    // Calculate averages and prepare chart data
-    const labels = Object.keys(trendData);
-    const values = labels.map(date =>
-        trendData[date].sum / trendData[date].count
-    );
-
-    return { labels, values };
+        
+        // Try parsing as direct date
+        const date = new Date(timestamp);
+        if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+        }
+        
+        return timestamp;
+    } catch (error) {
+        console.warn('Error formatting date:', error);
+        return timestamp;
+    }
 }
 
 // Generate word cloud from comments
@@ -274,60 +340,161 @@ function generateWordCloud(comments) {
     }
 }
 
-// Update UI with comment data
-function updateUI(comments) {
+// Function to update sentiment trend chart
+async function updateSentimentTrendChart() {
     try {
-        currentComments = comments || [];
+        const data = await chrome.storage.local.get(['sentimentTrendData']);
+        const trendData = data.sentimentTrendData;
 
-        // Update total comments count
-        document.getElementById('total-comments').textContent = formatNumber(currentComments.length);
-
-        if (!currentComments.length) {
-            document.getElementById('avg-sentiment').textContent = '0.00';
-            document.getElementById('comments-list').innerHTML =
-                '<p class="no-comments">No comments found. Try scrolling through the YouTube comments section to load more.</p>';
-            initializeCharts([0, 0, 0], { labels: [], values: [] });
+        if (!trendData || !trendData.labels || trendData.labels.length === 0) {
+            console.warn('No trend data available');
             return;
         }
 
-        // Calculate average sentiment
-        const validComments = currentComments.filter(c => c.sentiment && typeof c.sentiment.normalizedScore === 'number');
-        const avgSentiment = validComments.length > 0
-            ? validComments.reduce((acc, curr) => acc + curr.sentiment.normalizedScore, 0) / validComments.length
-            : 0;
+        const ctx = document.getElementById('trendChart');
+        if (!ctx) {
+            console.error('Trend chart canvas not found');
+            return;
+        }
 
-        document.getElementById('avg-sentiment').textContent = avgSentiment.toFixed(2);
-
-        // Calculate sentiment distribution
-        const distribution = [
-            validComments.filter(c => c.sentiment.normalizedScore > 0.1).length,
-            validComments.filter(c => Math.abs(c.sentiment.normalizedScore) <= 0.1).length,
-            validComments.filter(c => c.sentiment.normalizedScore < -0.1).length
-        ];
-
-        // Process trend data
-        const trendData = processTrendData(validComments);
-
-        // Initialize charts with distribution and trend data
-        initializeCharts(distribution, trendData);
-
-        // Generate word cloud
-        generateWordCloud(validComments);
-
-        // Display comments
-        displayComments(currentComments);
+        // Safely destroy existing chart
+        safeDestroyChart(charts.trend);
+        
+        // Create new chart
+        charts.trend = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: trendData.labels,
+                datasets: trendData.datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Sentiment Trend Over Time',
+                        font: {
+                            size: 16
+                        }
+                    },
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        },
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Percentage of Comments'
+                        },
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
     } catch (error) {
-        console.error('Error updating UI:', error);
-        document.getElementById('comments-list').innerHTML =
-            `<p class="error-message">Error updating display: ${error.message}</p>`;
+        console.error('Error updating trend chart:', error);
+        const container = document.querySelector('.chart-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="error-message">
+                    Error displaying trend chart: ${error.message}
+                </div>
+            `;
+        }
+    }
+}
+
+// Update UI with comment data
+function updateUI(comments) {
+    try {
+        if (!comments || !Array.isArray(comments)) {
+            console.warn('No comments data for UI update');
+            return;
+        }
+
+        currentComments = comments;
+
+        // Update total comments count
+        const totalCommentsElement = document.getElementById('total-comments');
+        if (totalCommentsElement) {
+            totalCommentsElement.textContent = comments.length;
+        }
+
+        // Calculate and update average sentiment
+        const validComments = comments.filter(c => c.sentiment && typeof c.sentiment.normalizedScore === 'number');
+        if (validComments.length > 0) {
+            const avgSentiment = validComments.reduce((acc, curr) => acc + curr.sentiment.normalizedScore, 0) / validComments.length;
+            const avgSentimentElement = document.getElementById('avg-sentiment');
+            if (avgSentimentElement) {
+                avgSentimentElement.textContent = avgSentiment.toFixed(2);
+            }
+        }
+
+        // Update sentiment distribution chart
+        updateSentimentChart(comments);
+
+        // Update sentiment trend chart
+        updateSentimentTrendChart();
+
+        // Display comments list
+        displayComments(comments);
+
+    } catch (error) {
+        console.error('Error in updateUI:', error);
+        showError('Error updating display: ' + error.message);
     }
 }
 
 // Helper functions for sentiment classification
-function getSentimentClass(score) {
-    if (!score && score !== 0) return 'neutral';
-    if (score > 0.1) return 'positive';
-    if (score < -0.1) return 'negative';
+function getSentimentClass(sentiment) {
+    // Check if we're getting a sentiment object or a score
+    if (typeof sentiment === 'object' && sentiment !== null) {
+        return sentiment.sentiment || 'neutral';
+    }
+    
+    // Fallback to score-based classification for backward compatibility
+    if (typeof sentiment === 'number') {
+        if (sentiment > 0.1) return 'positive';
+        if (sentiment < -0.1) return 'negative';
+        return 'neutral';
+    }
+    
     return 'neutral';
 }
 
@@ -360,7 +527,7 @@ function displayComments(comments) {
         }
 
         validComments.forEach(comment => {
-            const sentimentClass = getSentimentClass(comment.sentiment.normalizedScore);
+            const sentimentClass = getSentimentClass(comment.sentiment);
             const div = document.createElement('div');
             div.className = `comment-item ${sentimentClass}`;
 
@@ -374,7 +541,7 @@ function displayComments(comments) {
                     <div class="meta-right">
                         ${timestamp}
                         ${likes}
-                        <span class="sentiment-score">Sentiment: ${comment.sentiment.normalizedScore.toFixed(2)}</span>
+                        <span class="sentiment-score">Sentiment: ${comment.sentiment.sentiment} (${comment.sentiment.normalizedScore.toFixed(2)})</span>
                     </div>
                 </div>
             `;
@@ -401,11 +568,11 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
             let filtered = currentComments.filter(c => c && c.sentiment);
 
             if (sentiment === 'positive') {
-                filtered = filtered.filter(c => c.sentiment.normalizedScore > 0.1);
+                filtered = filtered.filter(c => c.sentiment.sentiment === 'positive');
             } else if (sentiment === 'neutral') {
-                filtered = filtered.filter(c => Math.abs(c.sentiment.normalizedScore) <= 0.1);
+                filtered = filtered.filter(c => c.sentiment.sentiment === 'neutral');
             } else if (sentiment === 'negative') {
-                filtered = filtered.filter(c => c.sentiment.normalizedScore < -0.1);
+                filtered = filtered.filter(c => c.sentiment.sentiment === 'negative');
             }
 
             displayComments(filtered);
@@ -417,42 +584,201 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     });
 });
 
-// Load initial data
-document.addEventListener('DOMContentLoaded', () => {
-    chrome.storage.local.get(['analyzedComments', 'error'], (result) => {
-        try {
-            if (result.error) {
-                document.getElementById('comments-list').innerHTML =
-                    `<p class="error-message">Error: ${result.error}</p>
-                     <p>Try refreshing the YouTube page and reopening the extension.</p>`;
-                return;
-            }
+// Update the loading state in the UI
+function updateLoadingState(isLoading, message = '') {
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const loadingMessage = document.getElementById('loadingMessage');
+    const errorMessage = document.getElementById('errorMessage');
+    
+    if (isLoading) {
+        loadingIndicator.style.display = 'block';
+        loadingMessage.textContent = message;
+        loadingMessage.style.display = 'block';
+        errorMessage.style.display = 'none';
+    } else {
+        loadingIndicator.style.display = 'none';
+        loadingMessage.style.display = 'none';
+    }
+}
 
-            if (!result.analyzedComments || !Array.isArray(result.analyzedComments)) {
-                document.getElementById('comments-list').innerHTML =
-                    '<p class="no-comments">No comments analyzed yet. Try scrolling through the YouTube comments section.</p>';
-                return;
-            }
+// Display error message
+function showError(message) {
+    const errorMessage = document.getElementById('errorMessage');
+    errorMessage.textContent = message;
+    errorMessage.style.display = 'block';
+}
 
-            updateUI(result.analyzedComments || []);
-        } catch (error) {
-            console.error('Error loading initial data:', error);
-            document.getElementById('comments-list').innerHTML =
-                `<p class="error-message">Error loading data: ${error.message}</p>
-                 <p>Please try reopening the extension.</p>`;
+// Update comment summary in the UI
+function updateCommentSummary(summary) {
+    const summaryContent = document.getElementById('summary-content');
+    if (!summaryContent) {
+        console.error('Summary content element not found');
+        return;
+    }
+
+    if (summary) {
+        summaryContent.innerHTML = `<p>${summary}</p>`;
+    } else {
+        summaryContent.innerHTML = '<p class="no-summary">No summary available yet. Try scrolling through more comments.</p>';
+    }
+}
+
+// Function to update sentiment chart
+async function updateSentimentChart(comments) {
+    if (!comments || !Array.isArray(comments)) {
+        console.warn('No valid comments data for chart update');
+        return;
+    }
+
+    try {
+        // Calculate sentiment distribution using sentiment category instead of score
+        const distribution = [
+            comments.filter(c => c.sentiment && c.sentiment.sentiment === 'positive').length,
+            comments.filter(c => c.sentiment && c.sentiment.sentiment === 'neutral').length,
+            comments.filter(c => c.sentiment && c.sentiment.sentiment === 'negative').length
+        ];
+
+        console.log('Sentiment distribution for chart:', distribution);
+
+        const ctx = document.getElementById('sentimentChart');
+        if (!ctx) {
+            console.error('Distribution chart canvas not found');
+            return;
         }
-    });
+
+        // Safely destroy existing chart
+        safeDestroyChart(charts.distribution);
+
+        // Create new distribution chart
+        charts.distribution = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Positive', 'Neutral', 'Negative'],
+                datasets: [{
+                    label: 'Comment Sentiment Distribution',
+                    data: distribution,
+                    backgroundColor: [
+                        'rgba(75, 192, 75, 0.6)',
+                        'rgba(54, 162, 235, 0.6)',
+                        'rgba(255, 99, 132, 0.6)'
+                    ],
+                    borderColor: [
+                        'rgb(75, 192, 75)',
+                        'rgb(54, 162, 235)',
+                        'rgb(255, 99, 132)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+
+        // Update trend chart
+        await updateSentimentTrendChart();
+
+    } catch (error) {
+        console.error('Error updating charts:', error);
+        showError('Error updating charts: ' + error.message);
+    }
+}
+
+// Initialize when popup opens
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        updateLoadingState(true, 'Loading comments...');
+        
+        // Get the active tab
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab) {
+            throw new Error('No active tab found');
+        }
+        
+        // Check if we're on a YouTube page
+        if (!tab.url?.includes('youtube.com')) {
+            throw new Error('This extension only works on YouTube pages');
+        }
+
+        // Get stored data
+        const data = await chrome.storage.local.get(['analyzedComments', 'commentSummary']);
+        
+        if (!data.analyzedComments?.length) {
+            // Request new comments from content script
+            try {
+                const response = await chrome.tabs.sendMessage(tab.id, { action: 'getComments' });
+                if (response?.success) {
+                    console.log('Successfully retrieved comments:', response.commentCount);
+                } else {
+                    throw new Error(response?.error || 'Failed to get comments');
+                }
+            } catch (error) {
+                console.error('Error getting comments:', error);
+                showError('Error: ' + error.message);
+            }
+        } else {
+            // Use existing data
+            updateUI(data.analyzedComments);
+            if (data.commentSummary) {
+                updateCommentSummary(data.commentSummary);
+            }
+        }
+        
+        updateLoadingState(false);
+        
+    } catch (error) {
+        console.error('Popup initialization error:', error);
+        updateLoadingState(false);
+        showError(error.message);
+    }
 });
 
 // Listen for storage changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
-    try {
-        if (changes.analyzedComments) {
+    if (namespace === 'local') {
+        if (changes.analyzedComments?.newValue) {
             updateUI(changes.analyzedComments.newValue);
         }
+        if (changes.commentSummary?.newValue) {
+            updateCommentSummary(changes.commentSummary.newValue);
+        }
+    }
+});
+
+// Handle refresh summary button click
+document.getElementById('refresh-summary').addEventListener('click', async () => {
+    try {
+        updateLoadingState(true, 'Refreshing summary...');
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab) {
+            throw new Error('No active tab found');
+        }
+
+        const response = await chrome.tabs.sendMessage(tab.id, { action: 'getComments' });
+        if (!response?.success) {
+            throw new Error(response?.error || 'Failed to refresh comments');
+        }
+
+        updateLoadingState(false);
     } catch (error) {
-        console.error('Error handling storage changes:', error);
-        document.getElementById('comments-list').innerHTML =
-            `<p class="error-message">Error updating data: ${error.message}</p>`;
+        console.error('Error refreshing summary:', error);
+        updateLoadingState(false);
+        showError('Error refreshing: ' + error.message);
     }
 });
